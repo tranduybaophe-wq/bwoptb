@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Photobooth by Jyo</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="hearts" class="hearts" aria-hidden="true"></div>
+
+  <section id="screen-home" class="screen screen--center">
+    <div class="home-card">
+      <div class="home-text">
+        <div class="t-welcome">WELCOME</div>
+        <div class="t-to">to</div>
+        <div class="t-title">PHOTOBOOTH</div>
+        <div class="t-by">by: Jyo</div>
+      </div>
+
+      <button id="btnStart" class="btn btn--primary">
+        START
+        <img class="btn-icon" src="assets/logokamera.PNG" alt="" />
+      </button>
+    </div>
+  </section>
+
+ 
+  <section id="screen-capture" class="screen hidden">
+    <div class="capture-layout">
+      <div class="camera-col">
+        <div class="camera-stage" aria-label="Live preview">
+          <video id="video" autoplay playsinline muted></video>
+          <div id="countdown" class="countdown hidden">3</div>
+        </div>
+
+        <button id="btnCapture" class="btn btn--primary btn--wide">CAPTURE</button>
+      </div>
+
+      <div class="strip-col">
+        <div class="strip-wrap">
+        <button id="btnPrevTpl" class="tpl-nav tpl-nav--left" type="button">‹</button>
+
+        <img id="stripPreview" class="strip-preview" alt="Photo strip preview" />
+
+        <button id="btnNextTpl" class="tpl-nav tpl-nav--right" type="button">›</button>
+
+        <button id="btnRetake" class="retake hidden" type="button">retake?</button>
+        </div>
+
+        <button id="btnDownload" class="btn btn--ghost btn--small" disabled>DOWNLOAD</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-downloading" class="screen hidden screen--center">
+    <div class="download-stage">
+      <div class="camera-anim">
+        <img class="camera-img" src="assets/kamera.PNG" alt="" />
+        <img id="stripOut" class="strip-out" alt="" />
+      </div>
+    </div>
+  </section>
+
+
+  <section id="screen-done" class="screen hidden screen--center">
+    <div class="done-stage">
+      <div class="done-row">
+        <div class="done-word">WELL</div>
+        <img id="stripFinal" class="strip-final" alt="Final strip" />
+        <div class="done-word">DONE</div>
+      </div>
+      <button id="btnHome" class="btn btn--primary">HOME</button>
+    </div>
+  </section>
+
+  <canvas id="canvas" class="hidden"></canvas>
+  <audio id="shutterSound" src="assets/shutter.MP3" preload="auto"></audio>
+  <audio id="printSound" src="assets/soundPrint.MP3" preload="auto"></audio>
+
+
+  <script src="script.js"></script>
+</body>
+</html>
